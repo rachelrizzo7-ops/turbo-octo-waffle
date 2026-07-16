@@ -1,0 +1,140 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  ADMIN // manage users, full access
+  APPROVER // reviews AI-extracted data, approves/rejects contracts
+  INTAKE // uploads contracts, edits extracted data before it goes to approval
+  VIEWER // read-only access, can run/export reports
+}
+
+enum ContractStatus {
+  PROCESSING // uploaded, AI extraction in progress
+  NEEDS_REVIEW // AI extraction complete, awaiting human check
+  PENDING_APPROVAL // human has confirmed the coded data, awaiting approver
+  APPROVED
+  REJECTED
+  EXTRACTION_FAILED // AI extraction errored out, needs manual entry
+}
+
+enum LifecycleStatus {
+  ACTIVE
+  ARCHIVED
+  TERMINATED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(VIEWER)
+  createdAt    DateTime @default(now())
+
+  uploadedContracts Contract[]  @relation("UploadedBy")
+  reviewedContracts Contract[]  @relation("ReviewedBy")
+  approvedContracts Contract[]  @relation("ApprovedBy")
+  auditLogs         AuditLog[]
+}
+
+model Contract {
+  id              String          @id @default(cuid())
+  contractNumber  Int             @unique // friendly sequential ID shown in the UI/exports (e.g. Gatekeeper-style "26")
+  status          ContractStatus  @default(PROCESSING) // intake/approval workflow state
+  lifecycleStatus LifecycleStatus @default(ACTIVE) // post-approval contract state
+
+  // file storage
+  fileName String
+  filePath String
+  fileType String
+
+  // AI extraction bookkeeping
+  rawText         String? // extracted plain text of the document
+  aiExtractionRaw String? // raw JSON response from the AI extraction call
+  aiConfidence    String? // JSON map of field -> confidence, for reviewer attention
+  extractionError String?
+
+  // identity / classification
+  title             String // Contract Name
+  counterparty      String? // Supplier Name
+  supplierType      String? // Supplier Type
+  contractType      String? // e.g. Signed Quote, Schedule, Signed Order Form, MSA, NDA
+  category          String? // e.g. SaaS/Sub, HW/SW, Cloud/Hosting, Operations, Network
+  client            String? // client / business unit this contract is for
+  team              String? // internal owning team
+  internalReference String?
+
+  // dates & renewal
+  effectiveDate     DateTime? // Start Date
+  expirationDate    DateTime? // End Date
+  rollingDaysNotice Int? // days of notice required before renewal/expiration
+  noticePeriodDate  DateTime? // date by which notice must be given
+  autoArchive       Boolean   @default(false) // auto-move to ARCHIVED once expired
+
+  // financials
+  contractValue Float? // Annual Value
+  currency      String? @default("USD")
+  billingCycle  String? // Annual, Quarterly, Monthly, Prepaid
+  paymentTerms  String?
+
+  // risk / narrative
+  description  String?
+  ragStatus    String? // red, amber, green
+  ragNarrative String?
+  riskFlags    String? // JSON array of AI-flagged risk notes
+  summary      String?
+
+  // ownership & references
+  internalOwner           String?
+  supplierOwner           String?
+  contractReferenceNumber String?
+  invoiceNumber           String?
+  quoteNumber             String?
+  clientPO                String?
+  governingLaw            String?
+  keyObligations          String?
+  terminationTerms        String?
+
+  // workflow
+  uploadedById    String
+  uploadedBy      User      @relation("UploadedBy", fields: [uploadedById], references: [id])
+  reviewedById    String?
+  reviewedBy      User?     @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  approvedById    String?
+  approvedBy      User?     @relation("ApprovedBy", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+
+  @@index([status])
+  @@index([lifecycleStatus])
+  @@index([contractType])
+  @@index([expirationDate])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String // e.g. UPLOADED, AI_EXTRACTED, FIELDS_EDITED, SUBMITTED_FOR_APPROVAL, APPROVED, REJECTED, BULK_IMPORT_EDIT
+  detail     String? // JSON blob describing what changed
+  createdAt  DateTime @default(now())
+
+  @@index([contractId])
+}
