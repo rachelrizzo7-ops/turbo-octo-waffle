@@ -36,14 +36,22 @@ avatar, and outfits are scoped to their own account in Postgres.
   Claude, which returns 1-3 outfits referencing real closet item IDs via a
   `recommend_outfits` tool call. Item IDs that don't exist in the closet
   are filtered out server-side before returning to the client.
+- **Background removal** (`backend/src/services/backgroundRemoval.ts`,
+  `removeGarmentBackground`): every uploaded garment photo also runs
+  through `@imgly/background-removal-node`, a local segmentation model
+  (no external API, no per-image cost) that runs alongside classification
+  and produces a transparent-background PNG cutout (`cutoutImageUrl`). If
+  it fails for a given photo, the item still saves — `cutoutImageUrl` is
+  just `null` and the app falls back to the original photo.
 - **Avatar try-on**: the user takes one full-body selfie. Claude estimates
   rough normalized bounding boxes for torso/legs/feet
   (`estimateAvatarAnchors`) via another tool call, falling back to fixed
-  centered defaults if that fails. The mobile app then layers the
-  recommended items' photos on top of the avatar photo at those regions.
-  **This is an approximate compositing preview, not photorealistic
-  virtual try-on** — item photos aren't background-removed or warped to
-  body shape. See "Known limitations" below for how to upgrade this later.
+  centered defaults if that fails. The mobile app then layers each
+  outfit item's background-removed cutout on top of the avatar photo at
+  those regions. **This is an approximate compositing preview, not
+  photorealistic virtual try-on** — cutouts aren't warped to body shape,
+  perspective, or lighting. See "Known limitations" below for how to
+  upgrade this later.
 
 ## Running it locally
 
@@ -59,6 +67,15 @@ npm run dev                          # http://localhost:4000
 
 You need a running Postgres instance (`DATABASE_URL`) and an Anthropic API
 key (`ANTHROPIC_API_KEY`) with vision-capable model access.
+
+`@imgly/background-removal-node` depends on `sharp` and `onnxruntime-node`,
+which include native addons. `npm install` needs unrestricted network
+access (it fetches a prebuilt `libvips` binary) and, on Linux without a
+prebuilt binary available for your platform, standard build tools
+(`build-essential`/`libvips-dev` or equivalent) to compile `sharp` from
+source. This is a one-time install cost; no model files are downloaded at
+runtime; both the ONNX model and WASM runtime ship inside the npm
+package.
 
 ### 2. Mobile app
 
@@ -94,9 +111,10 @@ was requested:
   mobile `TryOnScreen` and backend `Avatar` model are structured so that
   swapping in a smarter renderer later doesn't require a data model
   change.
-- Garment photos aren't background-removed before being layered onto the
-  avatar; results look best with plain-background, flat-lay or hanger
-  photos.
+- Background removal is a general-purpose segmentation model, not
+  garment-specific — it can occasionally clip thin straps, fine jewelry,
+  or high-contrast patterns near the edge of the item. Results are still
+  best with even lighting and reasonable contrast against the background.
 - Avatar body-region anchors are AI-estimated, not measured — precision
   will vary by photo.
 - Local disk is used for uploaded images (`backend/uploads/`); swap in S3

@@ -9,6 +9,7 @@ export interface ClosetItem {
   id: string;
   userId: string;
   imageUrl: string;
+  cutoutImageUrl: string | null;
   label: string;
   garmentType: string;
   subcategory: string | null;

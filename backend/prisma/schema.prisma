@@ -29,7 +29,11 @@ model ClosetItem {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   imageUrl String
-  label    String // short human-readable name, e.g. "Navy Cotton Oxford Shirt"
+  // Background-removed PNG cutout of imageUrl, used when layering this
+  // item onto the avatar for try-on. Null if removal failed or hasn't
+  // run — callers should fall back to imageUrl in that case.
+  cutoutImageUrl String?
+  label          String // short human-readable name, e.g. "Navy Cotton Oxford Shirt"
 
   // Not part of the user's requested taxonomy, but required to build
   // outfits and position try-on overlays: what kind of garment this is.

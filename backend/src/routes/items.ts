@@ -4,6 +4,7 @@ import path from "path";
 import { prisma } from "../db";
 import { AuthedRequest, requireAuth } from "../middleware/auth";
 import { classifyGarmentImage } from "../services/claude";
+import { removeGarmentBackground } from "../services/backgroundRemoval";
 import { fileToBase64, mimeTypeFromExt, publicUrlForFile, upload, UPLOAD_DIR } from "../services/storage";
 import { TAXONOMY_DIMENSIONS } from "../services/taxonomy";
 
@@ -19,12 +20,20 @@ router.post("/", upload.single("photo"), async (req: AuthedRequest, res) => {
   try {
     const base64 = fileToBase64(req.file.path);
     const mediaType = mimeTypeFromExt(req.file.path);
-    const classification = await classifyGarmentImage(base64, mediaType);
+
+    // Independent operations on the same source photo — run concurrently.
+    // Background removal degrades to null (falls back to the original
+    // photo) rather than failing the upload if the local model errors.
+    const [classification, cutoutImageUrl] = await Promise.all([
+      classifyGarmentImage(base64, mediaType),
+      removeGarmentBackground(req.file.path),
+    ]);
 
     const item = await prisma.closetItem.create({
       data: {
         userId: req.userId!,
         imageUrl: publicUrlForFile(req.file.filename),
+        cutoutImageUrl,
         label: classification.label,
         garmentType: classification.garmentType,
         subcategory: classification.subcategory,
@@ -72,8 +81,10 @@ router.delete("/:id", async (req: AuthedRequest, res) => {
 
   await prisma.closetItem.delete({ where: { id: item.id } });
 
-  const filename = path.basename(item.imageUrl);
-  fs.unlink(path.join(UPLOAD_DIR, filename), () => undefined);
+  fs.unlink(path.join(UPLOAD_DIR, path.basename(item.imageUrl)), () => undefined);
+  if (item.cutoutImageUrl) {
+    fs.unlink(path.join(UPLOAD_DIR, path.basename(item.cutoutImageUrl)), () => undefined);
+  }
 
   return res.status(204).send();
 });

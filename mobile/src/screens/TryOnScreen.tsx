@@ -100,8 +100,8 @@ export default function TryOnScreen({ route, navigation }: Props) {
           {outfit.name}
         </Text>
         <Text style={{ color: theme.color.textMuted, marginBottom: theme.spacing(4), fontSize: 12 }}>
-          Approximate preview — items are layered onto your photo using estimated body regions,
-          not a precise fit render.
+          Approximate preview — background-removed item cutouts are layered onto your photo using
+          estimated body regions, not a precise fit render.
         </Text>
 
         <View
@@ -125,7 +125,7 @@ export default function TryOnScreen({ route, navigation }: Props) {
               return (
                 <Image
                   key={item.id}
-                  source={{ uri: resolveImageUrl(item.imageUrl) }}
+                  source={{ uri: resolveImageUrl(item.cutoutImageUrl ?? item.imageUrl) }}
                   resizeMode="contain"
                   style={{
                     position: "absolute",
