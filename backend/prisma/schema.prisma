@@ -1,0 +1,101 @@
+// Prisma schema for the Closet AI backend.
+// Taxonomy fields are stored as string arrays because a single garment can
+// legitimately carry more than one value in a dimension (e.g. a fabric
+// blend, or a top that reads as both "ribbed" and "knit").
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  items   ClosetItem[]
+  avatar  Avatar?
+  outfits Outfit[]
+}
+
+model ClosetItem {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  imageUrl String
+  label    String // short human-readable name, e.g. "Navy Cotton Oxford Shirt"
+
+  // Not part of the user's requested taxonomy, but required to build
+  // outfits and position try-on overlays: what kind of garment this is.
+  garmentType String // top | bottom | dress | outerwear | footwear | accessory
+  subcategory String? // e.g. "sneaker", "blazer", "jeans"
+
+  dominantColors String[] // e.g. ["navy", "white"]
+
+  // --- Requested taxonomy dimensions (each may be empty if N/A) ---
+  sleeveLength   String[]
+  season         String[]
+  fabric         String[]
+  weight         String[]
+  fit            String[]
+  formality      String[]
+  pattern        String[]
+  texture        String[]
+  construction   String[]
+  occasion       String[]
+  colorTreatment String[]
+
+  notes     String?
+  createdAt DateTime @default(now())
+
+  outfitItems OutfitItem[]
+
+  @@index([userId])
+}
+
+model Avatar {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  imageUrl String
+
+  // Normalized (0-1) bounding boxes within imageUrl used to position
+  // clothing overlays on the client for the try-on preview.
+  torsoAnchor Json
+  legsAnchor  Json
+  feetAnchor  Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Outfit {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name         String
+  occasion     String?
+  weather      String?
+  stylingNotes String?
+  createdAt    DateTime @default(now())
+
+  items OutfitItem[]
+}
+
+model OutfitItem {
+  id       String @id @default(uuid())
+  outfitId String
+  outfit   Outfit @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+  itemId   String
+  item     ClosetItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([outfitId, itemId])
+}

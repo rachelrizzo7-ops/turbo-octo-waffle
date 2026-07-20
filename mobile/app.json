@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Closet AI",
+    "slug": "closet-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Closet AI uses your camera to photograph clothing items and your avatar photo.",
+        "NSPhotoLibraryUsageDescription": "Closet AI can use photos from your library as an alternative to the camera."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Closet AI can use photos from your library as an alternative to the camera.",
+          "cameraPermission": "Closet AI uses your camera to photograph clothing items and your avatar photo."
+        }
+      ]
+    ]
+  }
+}
